@@ -21,7 +21,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 SYMBOLS = [s.strip().upper() for s in os.getenv("SYMBOLS", "BTCUSDT,ETHUSDT").split(",") if s.strip()]
-INTERVAL = "5m"
+INTERVAL = "5m"  # Fixed timeframe: 5 minutes only; do not change to 1m.
 POLL_SECONDS = int(os.getenv("POLL_SECONDS", "4"))
 DB_PATH = os.getenv("DB_PATH", "signals.sqlite3")
 PRIMARY = os.getenv("PRIMARY_EXCHANGE", "mexc").lower()
@@ -97,12 +97,12 @@ RULES = [
     # Special numbered rules. The signal candle is the final numbered candle.
     {"id": "rule1_green_run_11", "name": "Правило №1 — попередня серія зелена",
      "side": "LONG", "signal_color": RED,
-     "prefix": [RED, GREEN, ANY, ANY, ANY, RED, RED, ANY, ANY, ANY],
+     "prefix": [RED, ANY, ANY, ANY, ANY, GREEN, RED, ANY, ANY, RED],
      "series_before": GREEN, "reported_win_rate": "99,68%",
      "reported_horizon": 6, "outcome_mode": "at_least_one_green"},
     {"id": "rule2_previous_green_7", "name": "Правило №2 — попередня свічка зелена",
      "side": "LONG", "signal_color": RED,
-     "prefix": [RED, GREEN, ANY, ANY, ANY, RED],
+     "prefix": [RED, GREEN, ANY, ANY, ANY, RED, RED],
      "previous_color": GREEN, "reported_win_rate": "99,64%",
      "reported_horizon": 6, "outcome_mode": "at_least_one_green"},
 ]
@@ -179,11 +179,34 @@ def format_time(ms):
 
 async def fetch_klines(session, symbol, exchange):
     if exchange == "mexc":
-        url = "https://api.mexc.com/api/v3/klines"
-    else:
-        url = "https://api.binance.com/api/v3/klines"
+        # MEXC USDT-M perpetual futures. Contract symbols use underscores.
+        contract_symbol = symbol.replace("USDT", "_USDT")
+        url = f"https://api.mexc.com/api/v1/contract/kline/{contract_symbol}"
+        params = {"interval": "Min5"}  # MEXC futures 5-minute candles
+        async with session.get(url, params=params, timeout=15) as response:
+            response.raise_for_status()
+            payload = await response.json()
 
-    params = {"symbol": symbol, "interval": INTERVAL, "limit": 100}
+        if not payload.get("success") or not isinstance(payload.get("data"), dict):
+            raise RuntimeError(f"Unexpected MEXC futures response: {payload}")
+
+        data = payload["data"]
+        candles = []
+        for i, timestamp_sec in enumerate(data.get("time", [])):
+            open_time_ms = int(timestamp_sec) * 1000
+            candles.append(Candle(
+                open_time=open_time_ms,
+                open=float(data["open"][i]),
+                high=float(data["high"][i]),
+                low=float(data["low"][i]),
+                close=float(data["close"][i]),
+                close_time=open_time_ms + 5 * 60 * 1000 - 1,
+            ))
+        return sorted(candles, key=lambda c: c.open_time)
+
+    # Binance USDⓈ-M perpetual futures (fapi), not Spot.
+    url = "https://fapi.binance.com/fapi/v1/klines"
+    params = {"symbol": symbol, "interval": "5m", "limit": 100}  # Binance futures 5-minute candles
     async with session.get(url, params=params, timeout=15) as response:
         response.raise_for_status()
         raw = await response.json()
