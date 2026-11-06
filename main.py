@@ -279,7 +279,8 @@ async def add_warning(session, symbol, rule, current):
             return
     side_ua = "LONG (зростання)" if rule["side"] == "LONG" else "SHORT (падіння)"
     color_ua = "зеленою 🟢" if current.color == GREEN else "червоною 🔴"
-    # Telegram warning notification disabled; keep the DB record for confirmation.\n
+    # Telegram warning notification disabled; preserve candidate tracking.\n
+
 
 async def confirm_signal(session, symbol, rule, candle):
     with sqlite3.connect(DB_PATH) as db:
