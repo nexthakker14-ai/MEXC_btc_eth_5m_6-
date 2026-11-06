@@ -279,16 +279,7 @@ async def add_warning(session, symbol, rule, current):
             return
     side_ua = "LONG (зростання)" if rule["side"] == "LONG" else "SHORT (падіння)"
     color_ua = "зеленою 🟢" if current.color == GREEN else "червоною 🔴"
-    await telegram(session,
-        f"⚠️ ПОПЕРЕДЖЕННЯ\n"
-        f"Монета: {symbol}\nТаймфрейм: 5 хвилин\n"
-        f"Патерн: {rule['name']}\n"
-        f"Поточна незакрита сигнальна свічка стала {color_ua}.\n"
-        f"Напрямок патерну: {side_ua}\n"
-        f"Час свічки: {format_time(current.open_time)}\n\n"
-        f"Це лише попередження. Підтвердженого сигналу ще немає."
-    )
-
+    # Telegram warning notification disabled; keep the DB record for confirmation.\n
 
 async def confirm_signal(session, symbol, rule, candle):
     with sqlite3.connect(DB_PATH) as db:
