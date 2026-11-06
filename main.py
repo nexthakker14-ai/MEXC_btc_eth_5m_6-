@@ -268,7 +268,7 @@ def candle_is_closed(candle, now_ms):
     return candle.close_time < now_ms
 
 
-async def add_warning(session, symbol, rule, current):
+async def record_candidate(symbol, rule, current):
     with sqlite3.connect(DB_PATH) as db:
         try:
             db.execute(
@@ -277,9 +277,7 @@ async def add_warning(session, symbol, rule, current):
             )
         except sqlite3.IntegrityError:
             return
-    side_ua = "LONG (зростання)" if rule["side"] == "LONG" else "SHORT (падіння)"
-    color_ua = "зеленою 🟢" if current.color == GREEN else "червоною 🔴"
-    # Telegram warning notification disabled; preserve candidate tracking.\n
+
 
 
 async def confirm_signal(session, symbol, rule, candle):
@@ -380,13 +378,13 @@ async def process_symbol(session, symbol):
         if not rule_matches(rule, closed):
             continue
 
-        # Warning once per rule and current candle.
-        await add_warning(session, symbol, rule, current)
+        # Store candidate internally once per rule and candle; do not send a warning message.
+        await record_candidate(symbol, rule, current)
 
         # A signal is never confirmed while the candle is forming.
         # Once this candle closes, the next poll sees it in `closed`.
         # Match the exact same pattern using candles ending with this candle.
-        # We persist candidate IDs below via warning row; confirmation happens
+        # We persist candidate IDs internally; confirmation happens
         # when this candle moves from forming to closed on a later poll.
         # See confirm_closed_candidates().
     log.debug("%s fetched from %s", symbol, exchange)
@@ -440,7 +438,7 @@ async def worker():
                         if current.color in (GREEN, RED):
                             for rule in RULES:
                                 if current.color == rule["signal_color"] and rule_matches(rule, closed):
-                                    await add_warning(session, symbol, rule, current)
+                                    await record_candidate(symbol, rule, current)
                 except Exception:
                     log.exception("Processing error for %s", symbol)
             await asyncio.sleep(POLL_SECONDS)

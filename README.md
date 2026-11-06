@@ -7,10 +7,10 @@ It does **not** place, modify, or cancel exchange orders.
 
 - MEXC USDT-M perpetual futures REST klines are the default source (`BTC_USDT`, `ETH_USDT`); Binance USDⓈ-M perpetual futures klines are the fallback.
 - Polls the currently forming candle every 4 seconds.
-- Sends one warning per matching rule/candle as soon as its live color matches.
+- Does not send warning messages for forming candles; candidate patterns are stored internally.
 - Confirms only after that exact candle has closed in the required color.
 - Tracks the next six closed candles and reports WIN/LOSS.
-- SQLite prevents duplicate warnings/signals and stores pending results.
+- SQLite stores internal candidates, prevents duplicate signals, and stores pending results.
 - All Telegram text and source files are UTF-8.
 
 ## Deploy to Railway
@@ -45,11 +45,11 @@ Please validate these interpretations against the source strategy before using l
 
 ## Data and timing
 
-The bot uses public futures market-data REST endpoints only (MEXC `/api/v1/contract/kline/{symbol}` and Binance `/fapi/v1/klines`). It does not request trading permissions or submit orders. It polls every few seconds, so warnings can arrive a few seconds after a candle changes color. A closed-candle confirmation is based on exchange candle close timestamps. If both data sources are unavailable, the bot logs the error and retries on the next polling cycle.
+The bot uses public futures market-data REST endpoints only (MEXC `/api/v1/contract/kline/{symbol}` and Binance `/fapi/v1/klines`). It does not request trading permissions or submit orders. It polls every few seconds; only confirmed signals and their check results are sent. A closed-candle confirmation is based on exchange candle close timestamps. If both data sources are unavailable, the bot logs the error and retries on the next polling cycle.
 
 ## Storage
 
-SQLite file `signals.sqlite3` stores warnings and signals. For persistence across Railway redeploys, attach a Railway Volume and set `DB_PATH` to a path on that volume (for example `/data/signals.sqlite3`).
+SQLite file `signals.sqlite3` stores internal candidate records and signals. For persistence across Railway redeploys, attach a Railway Volume and set `DB_PATH` to a path on that volume (for example `/data/signals.sqlite3`).
 
 ## UTF-8 check
 
